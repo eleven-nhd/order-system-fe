@@ -9,9 +9,14 @@ import { MemberList } from './components/MemberList'
 import { MenuManager } from './components/MenuManager'
 import { OrderHistory } from './components/OrderHistory'
 import { OrderSummary } from './components/OrderSummary'
+import { SocialFeed } from './components/SocialFeed'
 import {
+  cancelDrinkVote,
+  checkoutPendingDrinkVotes,
+  createPostComment,
   createMenuItem,
   createOrder,
+  createSocialPost,
   createUser,
   deleteMemberPhoto,
   deleteOrdersByDateRange,
@@ -20,14 +25,15 @@ import {
   getMemberPhotos,
   getMenuItems,
   getOrders,
+  getOrCreateActiveVoteSession,
   getPendingDrinkVotes,
+  getSocialPosts,
   getUsers,
   submitDrinkVote,
+  togglePostLike,
   uploadMemberPhoto,
   updateMenuItem,
   updateUser,
-  checkoutPendingDrinkVotes,
-  cancelDrinkVote, getOrCreateActiveVoteSession,
 } from './data/orderRepository'
 import type {
   DatePreset,
@@ -38,18 +44,20 @@ import type {
   MenuItem,
   MenuItemType,
   OrderRecord,
+  SocialPost,
   User,
   VoteSession,
 } from './types'
 import { computeNetDebts } from './utils/debt'
 
-type TabKey = 'admin' | 'order' | 'dashboard' | 'fun' | 'vote-assistant'
+type TabKey = 'admin' | 'order' | 'dashboard' | 'fun' | 'vote-assistant' | 'social'
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'vote-assistant', label: 'Vote' },
   { key: 'admin', label: 'Admin' },
   { key: 'order', label: 'Đặt hàng' },
   { key: 'dashboard', label: 'Thống kê' },
+  { key: 'social', label: 'Trạng thái' },
   { key: 'fun', label: 'Giải trí' },
 ]
 
@@ -89,6 +97,7 @@ function App() {
   const [users, setUsers] = useState<User[]>([])
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [orders, setOrders] = useState<OrderRecord[]>([])
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([])
   const [memberPhotos, setMemberPhotos] = useState<MemberPhoto[]>([])
   const [drinkVotes, setDrinkVotes] = useState<DrinkVote[]>([])
   const [voteSession, setVoteSession] = useState<VoteSession | null>(null)
@@ -126,6 +135,10 @@ function App() {
     setOrders(await getOrders(dateRange))
   }
 
+  const loadSocialPosts = async () => {
+    setSocialPosts(await getSocialPosts())
+  }
+
   const loadMemberPhotos = async () => {
     setMemberPhotos(await getMemberPhotos())
   }
@@ -141,9 +154,10 @@ function App() {
       try {
         const currentSession = await getOrCreateActiveVoteSession()
 
-        const [userRows, menuRows, photoRows, voteRows] = await Promise.all([
+        const [userRows, menuRows, socialRows, photoRows, voteRows] = await Promise.all([
           getUsers(),
           getMenuItems(),
+          getSocialPosts(),
           getMemberPhotos(),
           getPendingDrinkVotes(currentSession.id),
         ])
@@ -152,6 +166,7 @@ function App() {
 
         setUsers(userRows)
         setMenuItems(menuRows)
+        setSocialPosts(socialRows)
         setMemberPhotos(photoRows)
         setDrinkVotes(voteRows)
         setVoteSession(currentSession)
@@ -199,6 +214,7 @@ function App() {
     await runSafe(async () => {
       await createUser(name)
       await loadUsers()
+      await loadSocialPosts()
     })
   }
 
@@ -207,6 +223,7 @@ function App() {
       await updateUser(id, name)
       await loadUsers()
       await loadOrders()
+      await loadSocialPosts()
       await loadMemberPhotos()
       if (voteSession) {
         await loadDrinkVotes(voteSession.id)
@@ -219,6 +236,7 @@ function App() {
       await deleteUser(id)
       await loadUsers()
       await loadOrders()
+      await loadSocialPosts()
       await loadMemberPhotos()
       if (voteSession) {
         await loadDrinkVotes(voteSession.id)
@@ -341,6 +359,29 @@ function App() {
       await deleteMemberPhoto(photoId, filePath)
       await loadMemberPhotos()
       setNoticeMessage('Đã xóa ảnh thành công.')
+    })
+  }
+
+  const handleCreateSocialPost = async (userId: number, content: string) => {
+    await runSafe(async () => {
+      await createSocialPost(userId, content)
+      await loadSocialPosts()
+      setNoticeMessage('Đã đăng bài viết mới.')
+    })
+  }
+
+  const handleToggleSocialLike = async (postId: number, userId: number) => {
+    await runSafe(async () => {
+      await togglePostLike(postId, userId)
+      await loadSocialPosts()
+    })
+  }
+
+  const handleCreateSocialComment = async (postId: number, userId: number, content: string) => {
+    await runSafe(async () => {
+      await createPostComment(postId, userId, content)
+      await loadSocialPosts()
+      setNoticeMessage('Đã gửi bình luận.')
     })
   }
 
@@ -494,6 +535,16 @@ function App() {
                 <DebtMatrix debts={debts} />
                 <OrderHistory orders={orders} />
               </>
+            )}
+
+            {activeTab === 'social' && (
+              <SocialFeed
+                users={users}
+                posts={socialPosts}
+                onCreatePost={handleCreateSocialPost}
+                onToggleLike={handleToggleSocialLike}
+                onCreateComment={handleCreateSocialComment}
+              />
             )}
 
             {activeTab === 'fun' && (

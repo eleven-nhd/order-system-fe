@@ -82,7 +82,7 @@ export function FunGallery({ users, photos, onUpload, onDelete }: FunGalleryProp
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Tab phụ: Thêm gu cho thành viên</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Gu của các cán bộ</h2>
         <p className="mt-1 text-sm text-slate-500">
           Mỗi thành viên có thể upload ảnh để tạo bộ sưu tập cá nhân. Mọi người đều xem được.
         </p>

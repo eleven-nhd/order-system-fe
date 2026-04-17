@@ -6,6 +6,7 @@ import type {
   MenuItem,
   MenuItemType,
   OrderRecord,
+  SocialPost,
   User,
   VoteSession,
 } from '../types'
@@ -56,6 +57,31 @@ interface SupabaseVoteSessionRow {
   id: number
   code: string
   created_at: string
+}
+
+interface SupabaseSocialLikeRow {
+  id: number
+  user_id: number
+  created_at: string
+  user: { id: number; name: string } | null
+}
+
+interface SupabaseSocialCommentRow {
+  id: number
+  user_id: number
+  content: string
+  created_at: string
+  user: { id: number; name: string } | null
+}
+
+interface SupabaseSocialPostRow {
+  id: number
+  user_id: number
+  content: string
+  created_at: string
+  author: { id: number; name: string } | null
+  likes: SupabaseSocialLikeRow[] | null
+  comments: SupabaseSocialCommentRow[] | null
 }
 
 type RelationValue<T> = T | T[] | null
@@ -206,6 +232,136 @@ export async function updateMenuItem(
 export async function deleteMenuItem(id: number): Promise<void> {
   const { error } = await supabase.from('menuitems').delete().eq('id', id)
   throwIfError(error, 'Không thể xóa món ăn.')
+}
+
+export async function getSocialPosts(): Promise<SocialPost[]> {
+  const { data, error } = await supabase
+    .from('social_posts')
+    .select(
+      `
+      id,
+      user_id,
+      content,
+      created_at,
+      author:users!social_posts_user_id_fkey (id, name),
+      likes:post_likes (
+        id,
+        user_id,
+        created_at,
+        user:users!post_likes_user_id_fkey (id, name)
+      ),
+      comments:post_comments (
+        id,
+        user_id,
+        content,
+        created_at,
+        user:users!post_comments_user_id_fkey (id, name)
+      )
+      `,
+    )
+    .order('created_at', { ascending: false })
+
+  throwIfError(error, 'Không thể tải bảng tin trạng thái.')
+
+  const rows = (data ?? []) as unknown as Array<
+    Omit<SupabaseSocialPostRow, 'author' | 'likes' | 'comments'> & {
+      author: RelationValue<{ id: number; name: string }>
+      likes:
+        | Array<
+            Omit<SupabaseSocialLikeRow, 'user'> & {
+              user: RelationValue<{ id: number; name: string }>
+            }
+          >
+        | null
+      comments:
+        | Array<
+            Omit<SupabaseSocialCommentRow, 'user'> & {
+              user: RelationValue<{ id: number; name: string }>
+            }
+          >
+        | null
+    }
+  >
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    userName: unwrapRelation(row.author)?.name ?? `User #${row.user_id}`,
+    content: row.content,
+    createdAt: row.created_at,
+    likes: (row.likes ?? [])
+      .slice()
+      .sort((a, b) => a.id - b.id)
+      .map((like) => ({
+        id: like.id,
+        userId: like.user_id,
+        userName: unwrapRelation(like.user)?.name ?? `User #${like.user_id}`,
+        createdAt: like.created_at,
+      })),
+    comments: (row.comments ?? [])
+      .slice()
+      .sort((a, b) => a.id - b.id)
+      .map((comment) => ({
+        id: comment.id,
+        userId: comment.user_id,
+        userName: unwrapRelation(comment.user)?.name ?? `User #${comment.user_id}`,
+        content: comment.content,
+        createdAt: comment.created_at,
+      })),
+  }))
+}
+
+export async function createSocialPost(userId: number, content: string): Promise<void> {
+  const text = content.trim()
+  if (!text) {
+    throw new Error('Nội dung bài viết không được để trống.')
+  }
+
+  const { error } = await supabase.from('social_posts').insert({
+    user_id: userId,
+    content: text,
+  })
+
+  throwIfError(error, 'Không thể đăng bài viết mới.')
+}
+
+export async function togglePostLike(postId: number, userId: number): Promise<void> {
+  const { data, error } = await supabase
+    .from('post_likes')
+    .select('id')
+    .eq('post_id', postId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  throwIfError(error, 'Không thể kiểm tra trạng thái thích bài viết.')
+
+  if (data?.id) {
+    const { error: deleteError } = await supabase.from('post_likes').delete().eq('id', data.id)
+    throwIfError(deleteError, 'Không thể bỏ thích bài viết.')
+    return
+  }
+
+  const { error: insertError } = await supabase.from('post_likes').insert({
+    post_id: postId,
+    user_id: userId,
+  })
+
+  throwIfError(insertError, 'Không thể thích bài viết.')
+}
+
+export async function createPostComment(postId: number, userId: number, content: string): Promise<void> {
+  const text = content.trim()
+  if (!text) {
+    throw new Error('Nội dung bình luận không được để trống.')
+  }
+
+  const { error } = await supabase.from('post_comments').insert({
+    post_id: postId,
+    user_id: userId,
+    content: text,
+  })
+
+  throwIfError(error, 'Không thể gửi bình luận.')
 }
 
 export async function createOrder(buyerId: number, lines: NewOrderLine[]): Promise<number> {

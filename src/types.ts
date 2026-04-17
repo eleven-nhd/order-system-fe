@@ -79,3 +79,28 @@ export interface VoteSession {
   createdAt: string
 }
 
+export interface SocialLike {
+  id: number
+  userId: number
+  userName: string
+  createdAt: string
+}
+
+export interface SocialComment {
+  id: number
+  userId: number
+  userName: string
+  content: string
+  createdAt: string
+}
+
+export interface SocialPost {
+  id: number
+  userId: number
+  userName: string
+  content: string
+  createdAt: string
+  likes: SocialLike[]
+  comments: SocialComment[]
+}
+
