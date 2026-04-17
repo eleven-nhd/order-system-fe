@@ -40,7 +40,7 @@ export function MemberList({ users, onCreate, onUpdate, onDelete }: MemberListPr
         <input
           value={newName}
           onChange={(event) => setNewName(event.target.value)}
-          placeholder="Ten thanh vien"
+          placeholder="Tên thành viên"
           className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-violet-200 focus:ring"
         />
         <button

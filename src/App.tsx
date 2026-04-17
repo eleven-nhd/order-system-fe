@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BuyerSelector } from './components/BuyerSelector'
+import { ConCacVoteAssistant } from './components/ConCacVoteAssistant'
 import { DateFilter } from './components/DateFilter'
 import { DebtMatrix } from './components/DebtMatrix'
 import { FunGallery } from './components/FunGallery'
@@ -36,9 +37,10 @@ import type {
 } from './types'
 import { computeNetDebts } from './utils/debt'
 
-type TabKey = 'admin' | 'order' | 'dashboard' | 'fun'
+type TabKey = 'admin' | 'order' | 'dashboard' | 'fun' | 'vote-assistant'
 
 const tabs: { key: TabKey; label: string }[] = [
+  { key: 'vote-assistant', label: 'Vote' },
   { key: 'admin', label: 'Admin' },
   { key: 'order', label: 'Đặt hàng' },
   { key: 'dashboard', label: 'Thống kê' },
@@ -77,7 +79,7 @@ function toDateRange(preset: DatePreset): DateRange {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabKey>('admin')
+  const [activeTab, setActiveTab] = useState<TabKey>('vote-assistant')
   const [users, setUsers] = useState<User[]>([])
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [orders, setOrders] = useState<OrderRecord[]>([])
@@ -306,7 +308,19 @@ function App() {
     await runSafe(async () => {
       await deleteMemberPhoto(photoId, filePath)
       await loadMemberPhotos()
-      setNoticeMessage('Da xoa anh thanh cong.')
+      setNoticeMessage('Đã xóa ảnh thành công.')
+    })
+  }
+
+  const handleCheckoutSharedDrinkBill = async (
+    sharedBuyerId: number,
+    linesToCheckout: Array<{ userId: number; itemId: number; quantity: number }>,
+  ) => {
+    await runSafe(async () => {
+      await createOrder(sharedBuyerId, linesToCheckout)
+      await loadOrders()
+      setActiveTab('dashboard')
+      setNoticeMessage('Đã chốt hóa đơn chung từ vote.')
     })
   }
 
@@ -355,6 +369,13 @@ function App() {
           </section>
         ) : (
           <section className="mt-6 space-y-4">
+            {activeTab === 'vote-assistant' && (
+                <ConCacVoteAssistant
+                    users={users}
+                    menuItems={menuItems}
+                    onCheckout={handleCheckoutSharedDrinkBill}
+                />
+            )}
             {activeTab === 'admin' && (
               <>
                 <MemberList

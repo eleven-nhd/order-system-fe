@@ -8,6 +8,7 @@ Ung dung React + Vite + TypeScript de quan ly order nhom ban, thao tac truc tiep
 - Tab 2 - Order Session: chon buyer, them dong goi mon theo tung nguoi, chot don.
 - Tab 3 - Dashboard: loc ngay/tuan/thang/tat ca, xem debt matrix da can tru, xem lich su hoa don, va xoa hoa don theo bo loc.
 - Tab 4 - Giai tri: thanh vien upload anh de tao bo suu tap rieng, moi nguoi deu xem duoc.
+- Tab 5 - ConCac Vote: tro ly ao text co dinh de cac thanh vien vote do uong va chot 1 hoa don chung.
 - Khong can backend API rieng, FE goi Supabase truc tiep bang `@supabase/supabase-js`.
 - Tailwind CSS v4 cho giao dien.
 
