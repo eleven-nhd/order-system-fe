@@ -1,5 +1,14 @@
 import { supabase } from './supabase'
-import type { DateRange, MemberPhoto, MenuItem, MenuItemType, OrderRecord, User } from '../types'
+import type {
+  DateRange,
+  DrinkVote,
+  MemberPhoto,
+  MenuItem,
+  MenuItemType,
+  OrderRecord,
+  User,
+  VoteSession,
+} from '../types'
 
 interface SupabaseErrorLike {
   message: string
@@ -32,6 +41,23 @@ interface SupabaseMemberPhotoRow {
   user: { id: number; name: string } | null
 }
 
+interface SupabaseDrinkVoteRow {
+  id: number
+  session_id: number
+  user_id: number
+  item_id: number
+  quantity: number
+  created_at: string
+  user: { id: number; name: string } | null
+  item: { id: number; name: string } | null
+}
+
+interface SupabaseVoteSessionRow {
+  id: number
+  code: string
+  created_at: string
+}
+
 type RelationValue<T> = T | T[] | null
 
 const MEMBER_PHOTOS_BUCKET = 'member-photos'
@@ -54,6 +80,58 @@ function unwrapRelation<T>(value: RelationValue<T>): T | null {
   }
 
   return value
+}
+
+function toVoteSession(row: SupabaseVoteSessionRow): VoteSession {
+  return {
+    id: row.id,
+    code: row.code,
+    createdAt: row.created_at,
+  }
+}
+
+function makeVoteSessionCode(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  const random = Math.floor(Math.random() * 900 + 100)
+  return `VOTE-${year}${month}${day}-${hour}${minute}-${random}`
+}
+
+async function createVoteSession(): Promise<VoteSession> {
+  const { data, error } = await supabase
+    .from('vote_sessions')
+    .insert({ code: makeVoteSessionCode() })
+    .select('id, code, created_at')
+    .single()
+
+  throwIfError(error, 'Khong the tao phien vote moi.')
+
+  if (!data) {
+    throw new Error('Khong the tao phien vote moi.')
+  }
+
+  return toVoteSession(data as SupabaseVoteSessionRow)
+}
+
+export async function getOrCreateActiveVoteSession(): Promise<VoteSession> {
+  const { data, error } = await supabase
+    .from('vote_sessions')
+    .select('id, code, created_at')
+    .is('closed_at', null)
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  throwIfError(error, 'Khong the tai phien vote hien tai.')
+
+  if (data) {
+    return toVoteSession(data as SupabaseVoteSessionRow)
+  }
+
+  return createVoteSession()
 }
 
 export async function getUsers(): Promise<User[]> {
@@ -130,7 +208,7 @@ export async function deleteMenuItem(id: number): Promise<void> {
   throwIfError(error, 'Không thể xóa món ăn.')
 }
 
-export async function createOrder(buyerId: number, lines: NewOrderLine[]): Promise<void> {
+export async function createOrder(buyerId: number, lines: NewOrderLine[]): Promise<number> {
   if (lines.length === 0) {
     throw new Error('Bạn phải thêm ít nhất 1 món.')
   }
@@ -191,6 +269,8 @@ export async function createOrder(buyerId: number, lines: NewOrderLine[]): Promi
     await supabase.from('orders').delete().eq('id', orderRow.id)
     throw new Error(detailError.message || 'Khong the luu chi tiet order.')
   }
+
+  return orderRow.id
 }
 
 export async function deleteOrdersByDateRange(range: DateRange): Promise<number> {
@@ -266,6 +346,126 @@ export async function getMemberPhotos(): Promise<MemberPhoto[]> {
       createdAt: row.created_at,
     }
   })
+}
+
+export async function getPendingDrinkVotes(sessionId: number): Promise<DrinkVote[]> {
+  const { data, error } = await supabase
+    .from('drink_votes')
+    .select(
+      `
+      id,
+      session_id,
+      user_id,
+      item_id,
+      quantity,
+      created_at,
+      user:users!drink_votes_user_id_fkey (id, name),
+      item:menuitems!drink_votes_item_id_fkey (id, name)
+      `,
+    )
+    .eq('session_id', sessionId)
+    .is('order_id', null)
+    .order('created_at', { ascending: true })
+
+  throwIfError(error, 'Khong the tai danh sach vote do uong.')
+
+  const rows = (data ?? []) as unknown as Array<
+    Omit<SupabaseDrinkVoteRow, 'user' | 'item'> & {
+      user: RelationValue<{ id: number; name: string }>
+      item: RelationValue<{ id: number; name: string }>
+    }
+  >
+
+  return rows.map((row) => ({
+    id: row.id,
+    sessionId: row.session_id,
+    userId: row.user_id,
+    userName: unwrapRelation(row.user)?.name ?? `User #${row.user_id}`,
+    itemId: row.item_id,
+    itemName: unwrapRelation(row.item)?.name ?? `Item #${row.item_id}`,
+    quantity: Math.max(1, row.quantity ?? 1),
+    createdAt: row.created_at,
+  }))
+}
+
+export async function submitDrinkVote(
+  sessionId: number,
+  userId: number,
+  itemId: number,
+  quantity: number,
+): Promise<void> {
+  const normalizedQuantity = Math.max(1, Math.floor(quantity))
+
+  const { error: deleteError } = await supabase
+    .from('drink_votes')
+    .delete()
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .is('order_id', null)
+
+  throwIfError(deleteError, 'Khong the cap nhat vote cu.')
+
+  const { error: insertError } = await supabase.from('drink_votes').insert({
+    session_id: sessionId,
+    user_id: userId,
+    item_id: itemId,
+    quantity: normalizedQuantity,
+  })
+
+  throwIfError(insertError, 'Khong the gui vote do uong.')
+}
+
+export async function cancelDrinkVote(sessionId: number, userId: number): Promise<void> {
+  const { error } = await supabase
+    .from('drink_votes')
+    .delete()
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .is('order_id', null)
+
+  throwIfError(error, 'Khong the huy vote cua ban.')
+}
+
+export async function checkoutPendingDrinkVotes(sessionId: number, buyerId: number): Promise<VoteSession> {
+  const { data: pendingRows, error: pendingError } = await supabase
+    .from('drink_votes')
+    .select('id, user_id, item_id, quantity')
+    .eq('session_id', sessionId)
+    .is('order_id', null)
+
+  throwIfError(pendingError, 'Khong the tai vote de chot don.')
+
+  if (!pendingRows || pendingRows.length === 0) {
+    throw new Error('Chua co vote nao de chot hoa don chung.')
+  }
+
+  const orderId = await createOrder(
+    buyerId,
+    pendingRows.map((row) => ({
+      userId: row.user_id,
+      itemId: row.item_id,
+      quantity: Math.max(1, row.quantity ?? 1),
+    })),
+  )
+
+  const voteIds = pendingRows.map((row) => row.id)
+  const { error: finalizeError } = await supabase
+    .from('drink_votes')
+    .update({ order_id: orderId })
+    .in('id', voteIds)
+
+  if (finalizeError) {
+    throw new Error(finalizeError.message || 'Da tao hoa don nhung khong dong vote.')
+  }
+
+  const { error: closeError } = await supabase
+    .from('vote_sessions')
+    .update({ closed_at: new Date().toISOString(), closed_order_id: orderId })
+    .eq('id', sessionId)
+
+  throwIfError(closeError, 'Da chot don nhung khong dong duoc phien vote.')
+
+  return createVoteSession()
 }
 
 export async function deleteMemberPhoto(photoId: number, filePath: string): Promise<void> {

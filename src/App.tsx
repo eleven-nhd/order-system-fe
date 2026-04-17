@@ -20,20 +20,26 @@ import {
   getMemberPhotos,
   getMenuItems,
   getOrders,
+  getPendingDrinkVotes,
   getUsers,
+  submitDrinkVote,
   uploadMemberPhoto,
   updateMenuItem,
   updateUser,
+  checkoutPendingDrinkVotes,
+  cancelDrinkVote, getOrCreateActiveVoteSession,
 } from './data/orderRepository'
 import type {
   DatePreset,
   DateRange,
+  DrinkVote,
   DraftOrderLine,
   MemberPhoto,
   MenuItem,
   MenuItemType,
   OrderRecord,
   User,
+  VoteSession,
 } from './types'
 import { computeNetDebts } from './utils/debt'
 
@@ -84,6 +90,8 @@ function App() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [orders, setOrders] = useState<OrderRecord[]>([])
   const [memberPhotos, setMemberPhotos] = useState<MemberPhoto[]>([])
+  const [drinkVotes, setDrinkVotes] = useState<DrinkVote[]>([])
+  const [voteSession, setVoteSession] = useState<VoteSession | null>(null)
   const [datePreset, setDatePreset] = useState<DatePreset>('today')
   const [buyerId, setBuyerId] = useState<number | ''>('')
   const [lines, setLines] = useState<DraftOrderLine[]>([])
@@ -122,15 +130,22 @@ function App() {
     setMemberPhotos(await getMemberPhotos())
   }
 
+  const loadDrinkVotes = async (sessionId: number) => {
+    setDrinkVotes(await getPendingDrinkVotes(sessionId))
+  }
+
   useEffect(() => {
     let cancelled = false
 
     const loadInitial = async () => {
       try {
-        const [userRows, menuRows, photoRows] = await Promise.all([
+        const currentSession = await getOrCreateActiveVoteSession()
+
+        const [userRows, menuRows, photoRows, voteRows] = await Promise.all([
           getUsers(),
           getMenuItems(),
           getMemberPhotos(),
+          getPendingDrinkVotes(currentSession.id),
         ])
 
         if (cancelled) return
@@ -138,6 +153,8 @@ function App() {
         setUsers(userRows)
         setMenuItems(menuRows)
         setMemberPhotos(photoRows)
+        setDrinkVotes(voteRows)
+        setVoteSession(currentSession)
       } catch (error) {
         if (cancelled) return
         const message = error instanceof Error ? error.message : 'Đã có lỗi xảy ra.'
@@ -191,6 +208,9 @@ function App() {
       await loadUsers()
       await loadOrders()
       await loadMemberPhotos()
+      if (voteSession) {
+        await loadDrinkVotes(voteSession.id)
+      }
     })
   }
 
@@ -200,6 +220,9 @@ function App() {
       await loadUsers()
       await loadOrders()
       await loadMemberPhotos()
+      if (voteSession) {
+        await loadDrinkVotes(voteSession.id)
+      }
     })
   }
 
@@ -207,6 +230,9 @@ function App() {
     await runSafe(async () => {
       await createMenuItem(name, price, type)
       await loadMenuItems()
+      if (voteSession) {
+        await loadDrinkVotes(voteSession.id)
+      }
     })
   }
 
@@ -220,6 +246,9 @@ function App() {
       await updateMenuItem(id, name, price, type)
       await loadMenuItems()
       await loadOrders()
+      if (voteSession) {
+        await loadDrinkVotes(voteSession.id)
+      }
     })
   }
 
@@ -228,6 +257,9 @@ function App() {
       await deleteMenuItem(id)
       await loadMenuItems()
       await loadOrders()
+      if (voteSession) {
+        await loadDrinkVotes(voteSession.id)
+      }
     })
   }
 
@@ -312,15 +344,45 @@ function App() {
     })
   }
 
-  const handleCheckoutSharedDrinkBill = async (
-    sharedBuyerId: number,
-    linesToCheckout: Array<{ userId: number; itemId: number; quantity: number }>,
-  ) => {
+  const handleCheckoutSharedDrinkBill = async (sharedBuyerId: number) => {
+    if (!voteSession) {
+      setErrorMessage('Chua co phien vote dang mo.')
+      return
+    }
+
     await runSafe(async () => {
-      await createOrder(sharedBuyerId, linesToCheckout)
+      const nextSession = await checkoutPendingDrinkVotes(voteSession.id, sharedBuyerId)
       await loadOrders()
+      setVoteSession(nextSession)
+      await loadDrinkVotes(nextSession.id)
       setActiveTab('dashboard')
-      setNoticeMessage('Đã chốt hóa đơn chung từ vote.')
+      setNoticeMessage(`Da chot hoa don va mo phien vote moi: ${nextSession.code}.`)
+    })
+  }
+
+  const handleSubmitDrinkVote = async (userId: number, itemId: number, quantity: number) => {
+    if (!voteSession) {
+      setErrorMessage('Chua co phien vote dang mo.')
+      return
+    }
+
+    await runSafe(async () => {
+      await submitDrinkVote(voteSession.id, userId, itemId, quantity)
+      await loadDrinkVotes(voteSession.id)
+      setNoticeMessage('Đã gửi vote đồ uống.')
+    })
+  }
+
+  const handleCancelDrinkVote = async (userId: number) => {
+    if (!voteSession) {
+      setErrorMessage('Chua co phien vote dang mo.')
+      return
+    }
+
+    await runSafe(async () => {
+      await cancelDrinkVote(voteSession.id, userId)
+      await loadDrinkVotes(voteSession.id)
+      setNoticeMessage('Da huy vote cua ban.')
     })
   }
 
@@ -370,11 +432,15 @@ function App() {
         ) : (
           <section className="mt-6 space-y-4">
             {activeTab === 'vote-assistant' && (
-                <ConCacVoteAssistant
-                    users={users}
-                    menuItems={menuItems}
-                    onCheckout={handleCheckoutSharedDrinkBill}
-                />
+              <ConCacVoteAssistant
+                users={users}
+                menuItems={menuItems}
+                voteSession={voteSession}
+                votes={drinkVotes}
+                onSubmitVote={handleSubmitDrinkVote}
+                onCancelMyVote={handleCancelDrinkVote}
+                onCheckout={handleCheckoutSharedDrinkBill}
+              />
             )}
             {activeTab === 'admin' && (
               <>

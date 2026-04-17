@@ -62,3 +62,20 @@ export interface MemberPhoto {
   createdAt: string
 }
 
+export interface DrinkVote {
+  id: number
+  sessionId: number
+  userId: number
+  userName: string
+  itemId: number
+  itemName: string
+  quantity: number
+  createdAt: string
+}
+
+export interface VoteSession {
+  id: number
+  code: string
+  createdAt: string
+}
+
