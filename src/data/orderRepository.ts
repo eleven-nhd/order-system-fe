@@ -107,10 +107,10 @@ async function createVoteSession(): Promise<VoteSession> {
     .select('id, code, created_at')
     .single()
 
-  throwIfError(error, 'Khong the tao phien vote moi.')
+  throwIfError(error, 'Không thể tạo phiên vote mới.')
 
   if (!data) {
-    throw new Error('Khong the tao phien vote moi.')
+    throw new Error('Không thể tạo phiên vote mới.')
   }
 
   return toVoteSession(data as SupabaseVoteSessionRow)
@@ -125,7 +125,7 @@ export async function getOrCreateActiveVoteSession(): Promise<VoteSession> {
     .limit(1)
     .maybeSingle()
 
-  throwIfError(error, 'Khong the tai phien vote hien tai.')
+  throwIfError(error, 'Không thể tải phiên vote hiện tại.')
 
   if (data) {
     return toVoteSession(data as SupabaseVoteSessionRow)
@@ -140,13 +140,13 @@ export async function getUsers(): Promise<User[]> {
     .select('id, name')
     .order('name', { ascending: true })
 
-  throwIfError(error, 'Khong the tai danh sach thanh vien.')
+  throwIfError(error, 'Không thể tải danh sách thành viên.')
   return (data ?? []).map((row) => ({ id: row.id, name: row.name }))
 }
 
 export async function createUser(name: string): Promise<void> {
   const { error } = await supabase.from('users').insert({ name: name.trim() })
-  throwIfError(error, 'Khong the tao thanh vien.')
+  throwIfError(error, 'Không thể tạo thành viên.')
 }
 
 export async function updateUser(id: number, name: string): Promise<void> {
@@ -166,7 +166,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
     .order('type', { ascending: true })
     .order('name', { ascending: true })
 
-  throwIfError(error, 'Khong the tai menu.')
+  throwIfError(error, 'Không thể tải menu.')
 
   return (data ?? []).map((row) => ({
     id: row.id,
@@ -200,7 +200,7 @@ export async function updateMenuItem(
     .update({ name: name.trim(), price, type })
     .eq('id', id)
 
-  throwIfError(error, 'Khong the cap nhat mon an.')
+  throwIfError(error, 'Không thể cập nhật món ăn.')
 }
 
 export async function deleteMenuItem(id: number): Promise<void> {
@@ -219,17 +219,17 @@ export async function createOrder(buyerId: number, lines: NewOrderLine[]): Promi
     .select('id, price')
     .in('id', itemIds)
 
-  throwIfError(menuError, 'Khong the doc thong tin menu.')
+  throwIfError(menuError, 'Không thể đọc thông tin menu.')
 
   if ((menuRows ?? []).length !== itemIds.length) {
-    throw new Error('Mot so mon an khong con ton tai trong menu.')
+    throw new Error('Một số món ăn không còn tồn tại trong menu.')
   }
 
   const priceMap = new Map((menuRows ?? []).map((row) => [row.id, Number(row.price)]))
   const normalizedLines = lines.map((line) => {
     const price = priceMap.get(line.itemId)
     if (price === undefined) {
-      throw new Error('Khong tim thay gia mon an.')
+      throw new Error('Không tìm thấy giá món ăn.')
     }
 
     return {
@@ -248,10 +248,10 @@ export async function createOrder(buyerId: number, lines: NewOrderLine[]): Promi
     .select('id')
     .single()
 
-  throwIfError(orderError, 'Khong the tao order.')
+  throwIfError(orderError, 'Không thể tạo order.')
 
   if (!orderRow) {
-    throw new Error('Khong the tao order.')
+    throw new Error('Không thể tạo order.')
   }
 
   const { error: detailError } = await supabase.from('orderdetails').insert(
@@ -267,7 +267,7 @@ export async function createOrder(buyerId: number, lines: NewOrderLine[]): Promi
   if (detailError) {
     // Supabase client cannot wrap multi-table inserts in a DB transaction by default.
     await supabase.from('orders').delete().eq('id', orderRow.id)
-    throw new Error(detailError.message || 'Khong the luu chi tiet order.')
+    throw new Error(detailError.message || 'Không thể lưu chi tiết order.')
   }
 
   return orderRow.id
@@ -285,7 +285,7 @@ export async function deleteOrdersByDateRange(range: DateRange): Promise<number>
   }
 
   const { data, error } = await deleteBuilder
-  throwIfError(error, 'Khong the xoa hoa don theo bo loc thoi gian.')
+  throwIfError(error, 'Không thể xóa hóa đơn theo bộ lọc thời gian.')
 
   return data?.length ?? 0
 }
@@ -298,7 +298,7 @@ export async function uploadMemberPhoto(userId: number, file: File): Promise<voi
     .from(MEMBER_PHOTOS_BUCKET)
     .upload(filePath, file, { cacheControl: '3600', contentType: file.type || undefined })
 
-  throwIfError(uploadError, 'Khong the upload anh len Supabase Storage.')
+  throwIfError(uploadError, 'Không thể upload ảnh lên Supabase Storage.')
 
   const { error: insertError } = await supabase
     .from('member_photos')
@@ -306,7 +306,7 @@ export async function uploadMemberPhoto(userId: number, file: File): Promise<voi
 
   if (insertError) {
     await supabase.storage.from(MEMBER_PHOTOS_BUCKET).remove([filePath])
-    throw new Error(insertError.message || 'Khong the luu metadata anh.')
+    throw new Error(insertError.message || 'Không thể lưu metadata ảnh.')
   }
 }
 
@@ -324,7 +324,7 @@ export async function getMemberPhotos(): Promise<MemberPhoto[]> {
     )
     .order('created_at', { ascending: false })
 
-  throwIfError(error, 'Khong the tai bo suu tap anh.')
+  throwIfError(error, 'Không thể tải bộ sưu tập ảnh.')
 
   const rows = (data ?? []) as unknown as Array<
     Omit<SupabaseMemberPhotoRow, 'user'> & {
@@ -367,7 +367,7 @@ export async function getPendingDrinkVotes(sessionId: number): Promise<DrinkVote
     .is('order_id', null)
     .order('created_at', { ascending: true })
 
-  throwIfError(error, 'Khong the tai danh sach vote do uong.')
+  throwIfError(error, 'Không thể tải danh sách vote đồ uống.')
 
   const rows = (data ?? []) as unknown as Array<
     Omit<SupabaseDrinkVoteRow, 'user' | 'item'> & {
@@ -403,7 +403,7 @@ export async function submitDrinkVote(
     .eq('user_id', userId)
     .is('order_id', null)
 
-  throwIfError(deleteError, 'Khong the cap nhat vote cu.')
+  throwIfError(deleteError, 'Không thể cập nhật vote cũ.')
 
   const { error: insertError } = await supabase.from('drink_votes').insert({
     session_id: sessionId,
@@ -412,7 +412,7 @@ export async function submitDrinkVote(
     quantity: normalizedQuantity,
   })
 
-  throwIfError(insertError, 'Khong the gui vote do uong.')
+  throwIfError(insertError, 'Không thể gửi vote đồ uống.')
 }
 
 export async function cancelDrinkVote(sessionId: number, userId: number): Promise<void> {
@@ -423,7 +423,7 @@ export async function cancelDrinkVote(sessionId: number, userId: number): Promis
     .eq('user_id', userId)
     .is('order_id', null)
 
-  throwIfError(error, 'Khong the huy vote cua ban.')
+  throwIfError(error, 'Không thể hủy vote của bạn.')
 }
 
 export async function checkoutPendingDrinkVotes(sessionId: number, buyerId: number): Promise<VoteSession> {
@@ -433,10 +433,10 @@ export async function checkoutPendingDrinkVotes(sessionId: number, buyerId: numb
     .eq('session_id', sessionId)
     .is('order_id', null)
 
-  throwIfError(pendingError, 'Khong the tai vote de chot don.')
+  throwIfError(pendingError, 'Không thể tải vote để chốt đơn.')
 
   if (!pendingRows || pendingRows.length === 0) {
-    throw new Error('Chua co vote nao de chot hoa don chung.')
+    throw new Error('Chưa có vote nào để chốt hóa đơn chung.')
   }
 
   const orderId = await createOrder(
@@ -455,7 +455,7 @@ export async function checkoutPendingDrinkVotes(sessionId: number, buyerId: numb
     .in('id', voteIds)
 
   if (finalizeError) {
-    throw new Error(finalizeError.message || 'Da tao hoa don nhung khong dong vote.')
+    throw new Error(finalizeError.message || 'Đã tạo hóa đơn nhưng không đóng vote.')
   }
 
   const { error: closeError } = await supabase
@@ -463,14 +463,14 @@ export async function checkoutPendingDrinkVotes(sessionId: number, buyerId: numb
     .update({ closed_at: new Date().toISOString(), closed_order_id: orderId })
     .eq('id', sessionId)
 
-  throwIfError(closeError, 'Da chot don nhung khong dong duoc phien vote.')
+  throwIfError(closeError, 'Đã chốt đơn nhưng không đóng được phiên vote.')
 
   return createVoteSession()
 }
 
 export async function deleteMemberPhoto(photoId: number, filePath: string): Promise<void> {
   const { error: deleteRowError } = await supabase.from('member_photos').delete().eq('id', photoId)
-  throwIfError(deleteRowError, 'Khong the xoa metadata anh.')
+  throwIfError(deleteRowError, 'Không thể xóa metadata ảnh.')
 
   const { error: removeFileError } = await supabase.storage
     .from(MEMBER_PHOTOS_BUCKET)
@@ -478,7 +478,7 @@ export async function deleteMemberPhoto(photoId: number, filePath: string): Prom
 
   if (removeFileError) {
     // Metadata is already deleted; report storage cleanup failure so admins can investigate.
-    throw new Error(removeFileError.message || 'Da xoa metadata nhung khong xoa duoc file anh.')
+    throw new Error(removeFileError.message || 'Đã xóa metadata nhưng không xóa được file ảnh.')
   }
 }
 
@@ -515,7 +515,7 @@ export async function getOrders(range: DateRange): Promise<OrderRecord[]> {
   }
 
   const { data, error } = await queryBuilder
-  throwIfError(error, 'Khong the tai lich su order.')
+  throwIfError(error, 'Không thể tải lịch sử order.')
 
   const rows = (data ?? []) as unknown as Array<
     Omit<SupabaseOrderRow, 'buyer' | 'details'> & {

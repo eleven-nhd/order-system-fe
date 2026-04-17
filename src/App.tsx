@@ -274,7 +274,7 @@ function App() {
     )
 
     if (validLines.length === 0) {
-      setErrorMessage('Vui long thêm ít nhất 1 dòng hợp lệ.')
+      setErrorMessage('Vui lòng thêm ít nhất 1 dòng hợp lệ.')
       return
     }
 
@@ -346,7 +346,7 @@ function App() {
 
   const handleCheckoutSharedDrinkBill = async (sharedBuyerId: number) => {
     if (!voteSession) {
-      setErrorMessage('Chua co phien vote dang mo.')
+      setErrorMessage('Chưa có phiên vote đang mở.')
       return
     }
 
@@ -356,13 +356,13 @@ function App() {
       setVoteSession(nextSession)
       await loadDrinkVotes(nextSession.id)
       setActiveTab('dashboard')
-      setNoticeMessage(`Da chot hoa don va mo phien vote moi: ${nextSession.code}.`)
+      setNoticeMessage(`Đã chốt hóa đơn và mở phiên vote mới: ${nextSession.code}.`)
     })
   }
 
   const handleSubmitDrinkVote = async (userId: number, itemId: number, quantity: number) => {
     if (!voteSession) {
-      setErrorMessage('Chua co phien vote dang mo.')
+      setErrorMessage('Chưa có phiên vote đang mở.')
       return
     }
 
@@ -375,14 +375,14 @@ function App() {
 
   const handleCancelDrinkVote = async (userId: number) => {
     if (!voteSession) {
-      setErrorMessage('Chua co phien vote dang mo.')
+      setErrorMessage('Chưa có phiên vote đang mở.')
       return
     }
 
     await runSafe(async () => {
       await cancelDrinkVote(voteSession.id, userId)
       await loadDrinkVotes(voteSession.id)
-      setNoticeMessage('Da huy vote cua ban.')
+      setNoticeMessage('Đã hủy vote của bạn.')
     })
   }
 
