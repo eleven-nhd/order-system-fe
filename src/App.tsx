@@ -1,64 +1,42 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BuyerSelector } from './components/BuyerSelector'
-import { ConCacVoteAssistant } from './components/ConCacVoteAssistant'
 import { DateFilter } from './components/DateFilter'
 import { DebtMatrix } from './components/DebtMatrix'
-import { FunGallery } from './components/FunGallery'
 import { ItemSelector } from './components/ItemSelector'
 import { MemberList } from './components/MemberList'
 import { MenuManager } from './components/MenuManager'
 import { OrderHistory } from './components/OrderHistory'
 import { OrderSummary } from './components/OrderSummary'
-import { SocialFeed } from './components/SocialFeed'
 import {
-  cancelDrinkVote,
-  checkoutPendingDrinkVotes,
-  createPostComment,
   createMenuItem,
   createOrder,
-  createSocialPost,
   createUser,
-  deleteMemberPhoto,
   deleteOrdersByDateRange,
   deleteMenuItem,
   deleteUser,
-  getMemberPhotos,
   getMenuItems,
   getOrders,
-  getOrCreateActiveVoteSession,
-  getPendingDrinkVotes,
-  getSocialPosts,
   getUsers,
-  submitDrinkVote,
-  togglePostLike,
-  uploadMemberPhoto,
   updateMenuItem,
   updateUser,
 } from './data/orderRepository'
 import type {
   DatePreset,
   DateRange,
-  DrinkVote,
   DraftOrderLine,
-  MemberPhoto,
   MenuItem,
   MenuItemType,
   OrderRecord,
-  SocialPost,
   User,
-  VoteSession,
 } from './types'
 import { computeNetDebts } from './utils/debt'
 
-type TabKey = 'admin' | 'order' | 'dashboard' | 'fun' | 'vote-assistant' | 'social'
+type TabKey = 'admin' | 'order' | 'dashboard'
 
 const tabs: { key: TabKey; label: string }[] = [
-  { key: 'vote-assistant', label: 'Vote' },
   { key: 'admin', label: 'Admin' },
   { key: 'order', label: 'Đặt hàng' },
   { key: 'dashboard', label: 'Thống kê' },
-  { key: 'social', label: 'Trạng thái' },
-  { key: 'fun', label: 'Giải trí' },
 ]
 
 function toDateRange(preset: DatePreset): DateRange {
@@ -93,17 +71,14 @@ function toDateRange(preset: DatePreset): DateRange {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabKey>('vote-assistant')
+  const [activeTab, setActiveTab] = useState<TabKey>('order')
   const [users, setUsers] = useState<User[]>([])
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [orders, setOrders] = useState<OrderRecord[]>([])
-  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([])
-  const [memberPhotos, setMemberPhotos] = useState<MemberPhoto[]>([])
-  const [drinkVotes, setDrinkVotes] = useState<DrinkVote[]>([])
-  const [voteSession, setVoteSession] = useState<VoteSession | null>(null)
   const [datePreset, setDatePreset] = useState<DatePreset>('today')
   const [buyerId, setBuyerId] = useState<number | ''>('')
   const [lines, setLines] = useState<DraftOrderLine[]>([])
+  const [manualTotal, setManualTotal] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isDeletingOrders, setIsDeletingOrders] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -135,41 +110,17 @@ function App() {
     setOrders(await getOrders(dateRange))
   }
 
-  const loadSocialPosts = async () => {
-    setSocialPosts(await getSocialPosts())
-  }
-
-  const loadMemberPhotos = async () => {
-    setMemberPhotos(await getMemberPhotos())
-  }
-
-  const loadDrinkVotes = async (sessionId: number) => {
-    setDrinkVotes(await getPendingDrinkVotes(sessionId))
-  }
-
   useEffect(() => {
     let cancelled = false
 
     const loadInitial = async () => {
       try {
-        const currentSession = await getOrCreateActiveVoteSession()
-
-        const [userRows, menuRows, socialRows, photoRows, voteRows] = await Promise.all([
-          getUsers(),
-          getMenuItems(),
-          getSocialPosts(),
-          getMemberPhotos(),
-          getPendingDrinkVotes(currentSession.id),
-        ])
+        const [userRows, menuRows] = await Promise.all([getUsers(), getMenuItems()])
 
         if (cancelled) return
 
         setUsers(userRows)
         setMenuItems(menuRows)
-        setSocialPosts(socialRows)
-        setMemberPhotos(photoRows)
-        setDrinkVotes(voteRows)
-        setVoteSession(currentSession)
       } catch (error) {
         if (cancelled) return
         const message = error instanceof Error ? error.message : 'Đã có lỗi xảy ra.'
@@ -214,7 +165,6 @@ function App() {
     await runSafe(async () => {
       await createUser(name)
       await loadUsers()
-      await loadSocialPosts()
     })
   }
 
@@ -223,11 +173,6 @@ function App() {
       await updateUser(id, name)
       await loadUsers()
       await loadOrders()
-      await loadSocialPosts()
-      await loadMemberPhotos()
-      if (voteSession) {
-        await loadDrinkVotes(voteSession.id)
-      }
     })
   }
 
@@ -236,11 +181,6 @@ function App() {
       await deleteUser(id)
       await loadUsers()
       await loadOrders()
-      await loadSocialPosts()
-      await loadMemberPhotos()
-      if (voteSession) {
-        await loadDrinkVotes(voteSession.id)
-      }
     })
   }
 
@@ -248,9 +188,6 @@ function App() {
     await runSafe(async () => {
       await createMenuItem(name, price, type)
       await loadMenuItems()
-      if (voteSession) {
-        await loadDrinkVotes(voteSession.id)
-      }
     })
   }
 
@@ -264,9 +201,6 @@ function App() {
       await updateMenuItem(id, name, price, type)
       await loadMenuItems()
       await loadOrders()
-      if (voteSession) {
-        await loadDrinkVotes(voteSession.id)
-      }
     })
   }
 
@@ -275,9 +209,6 @@ function App() {
       await deleteMenuItem(id)
       await loadMenuItems()
       await loadOrders()
-      if (voteSession) {
-        await loadDrinkVotes(voteSession.id)
-      }
     })
   }
 
@@ -287,12 +218,12 @@ function App() {
       return
     }
 
-    const validLines = lines.filter(
-      (line) => typeof line.userId === 'number' && typeof line.itemId === 'number',
-    )
+    const validLines = lines.filter((line) => typeof line.itemId === 'number')
+    const manualValue = Number(manualTotal)
+    const normalizedManual = Number.isFinite(manualValue) ? Math.max(0, manualValue) : 0
 
-    if (validLines.length === 0) {
-      setErrorMessage('Vui lòng thêm ít nhất 1 dòng hợp lệ.')
+    if (validLines.length === 0 && normalizedManual <= 0) {
+      setErrorMessage('Vui lòng chọn món hoặc nhập tổng tiền hợp lệ.')
       return
     }
 
@@ -300,14 +231,15 @@ function App() {
       await createOrder(
         buyerId,
         validLines.map((line) => ({
-          userId: line.userId as number,
           itemId: line.itemId as number,
           quantity: line.quantity,
         })),
+        normalizedManual,
       )
       await loadOrders()
       setLines([])
       setBuyerId('')
+      setManualTotal('')
       setActiveTab('dashboard')
       setNoticeMessage('Đã chốt đơn thành công.')
     })
@@ -346,94 +278,13 @@ function App() {
     })
   }
 
-  const handleUploadMemberPhoto = async (userId: number, file: File) => {
-    await runSafe(async () => {
-      await uploadMemberPhoto(userId, file)
-      await loadMemberPhotos()
-      setNoticeMessage('Upload ảnh thành công.')
-    })
-  }
-
-  const handleDeleteMemberPhoto = async (photoId: number, filePath: string) => {
-    await runSafe(async () => {
-      await deleteMemberPhoto(photoId, filePath)
-      await loadMemberPhotos()
-      setNoticeMessage('Đã xóa ảnh thành công.')
-    })
-  }
-
-  const handleCreateSocialPost = async (userId: number, content: string) => {
-    await runSafe(async () => {
-      await createSocialPost(userId, content)
-      await loadSocialPosts()
-      setNoticeMessage('Đã đăng bài viết mới.')
-    })
-  }
-
-  const handleToggleSocialLike = async (postId: number, userId: number) => {
-    await runSafe(async () => {
-      await togglePostLike(postId, userId)
-      await loadSocialPosts()
-    })
-  }
-
-  const handleCreateSocialComment = async (postId: number, userId: number, content: string) => {
-    await runSafe(async () => {
-      await createPostComment(postId, userId, content)
-      await loadSocialPosts()
-      setNoticeMessage('Đã gửi bình luận.')
-    })
-  }
-
-  const handleCheckoutSharedDrinkBill = async (sharedBuyerId: number) => {
-    if (!voteSession) {
-      setErrorMessage('Chưa có phiên vote đang mở.')
-      return
-    }
-
-    await runSafe(async () => {
-      const nextSession = await checkoutPendingDrinkVotes(voteSession.id, sharedBuyerId)
-      await loadOrders()
-      setVoteSession(nextSession)
-      await loadDrinkVotes(nextSession.id)
-      setActiveTab('dashboard')
-      setNoticeMessage(`Đã chốt hóa đơn và mở phiên vote mới: ${nextSession.code}.`)
-    })
-  }
-
-  const handleSubmitDrinkVote = async (userId: number, itemId: number, quantity: number) => {
-    if (!voteSession) {
-      setErrorMessage('Chưa có phiên vote đang mở.')
-      return
-    }
-
-    await runSafe(async () => {
-      await submitDrinkVote(voteSession.id, userId, itemId, quantity)
-      await loadDrinkVotes(voteSession.id)
-      setNoticeMessage('Đã gửi vote đồ uống.')
-    })
-  }
-
-  const handleCancelDrinkVote = async (userId: number) => {
-    if (!voteSession) {
-      setErrorMessage('Chưa có phiên vote đang mở.')
-      return
-    }
-
-    await runSafe(async () => {
-      await cancelDrinkVote(voteSession.id, userId)
-      await loadDrinkVotes(voteSession.id)
-      setNoticeMessage('Đã hủy vote của bạn.')
-    })
-  }
-
   return (
     <main className="min-h-screen bg-slate-50 text-slate-800">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-bold text-slate-900">Hệ thống đặt hàng cho các cán bộ Orenda</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Hệ thống ghi chú mua sắm</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Quản lý thành viên, tạo đơn mua hộ, và thống kê ghi nợ theo ngày/tuần/tháng.
+            Quản lý thành viên, tạo đơn mua, và thống kê tiền chia theo ngày/tuần/tháng.
           </p>
 
           <nav className="mt-5 flex flex-wrap gap-2">
@@ -472,17 +323,6 @@ function App() {
           </section>
         ) : (
           <section className="mt-6 space-y-4">
-            {activeTab === 'vote-assistant' && (
-              <ConCacVoteAssistant
-                users={users}
-                menuItems={menuItems}
-                voteSession={voteSession}
-                votes={drinkVotes}
-                onSubmitVote={handleSubmitDrinkVote}
-                onCancelMyVote={handleCancelDrinkVote}
-                onCheckout={handleCheckoutSharedDrinkBill}
-              />
-            )}
             {activeTab === 'admin' && (
               <>
                 <MemberList
@@ -503,12 +343,27 @@ function App() {
             {activeTab === 'order' && (
               <>
                 <BuyerSelector users={users} value={buyerId} onChange={setBuyerId} />
-                <ItemSelector users={users} menuItems={menuItems} lines={lines} onChange={setLines} />
+                <ItemSelector menuItems={menuItems} lines={lines} onChange={setLines} />
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h2 className="text-lg font-semibold text-slate-900">Tổng tiền nhập tay</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Nếu nhập số này, hệ thống sẽ ưu tiên dùng để chia đều cho mọi người.
+                  </p>
+                  <input
+                    type="number"
+                    min={0}
+                    value={manualTotal}
+                    onChange={(event) => setManualTotal(event.target.value)}
+                    placeholder="VD: 120000"
+                    className="mt-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
                 <OrderSummary
                   buyerId={buyerId}
                   users={users}
                   menuItems={menuItems}
                   lines={lines}
+                  manualTotal={Number.isFinite(Number(manualTotal)) ? Number(manualTotal) : 0}
                   onCheckout={handleCheckout}
                 />
               </>
@@ -537,24 +392,6 @@ function App() {
               </>
             )}
 
-            {activeTab === 'social' && (
-              <SocialFeed
-                users={users}
-                posts={socialPosts}
-                onCreatePost={handleCreateSocialPost}
-                onToggleLike={handleToggleSocialLike}
-                onCreateComment={handleCreateSocialComment}
-              />
-            )}
-
-            {activeTab === 'fun' && (
-              <FunGallery
-                users={users}
-                photos={memberPhotos}
-                onUpload={handleUploadMemberPhoto}
-                onDelete={handleDeleteMemberPhoto}
-              />
-            )}
           </section>
         )}
       </div>

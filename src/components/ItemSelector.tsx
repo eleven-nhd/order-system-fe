@@ -1,18 +1,16 @@
-import type { DraftOrderLine, MenuItem, User } from '../types'
+import type { DraftOrderLine, MenuItem } from '../types'
 import { formatMoney } from '../utils/money'
 
 interface ItemSelectorProps {
-  users: User[]
   menuItems: MenuItem[]
   lines: DraftOrderLine[]
   onChange: (nextLines: DraftOrderLine[]) => void
 }
 
-export function ItemSelector({ users, menuItems, lines, onChange }: ItemSelectorProps) {
+export function ItemSelector({ menuItems, lines, onChange }: ItemSelectorProps) {
   const addLine = () => {
     const newLine: DraftOrderLine = {
       id: crypto.randomUUID(),
-      userId: '',
       itemId: '',
       quantity: 1,
     }
@@ -32,7 +30,7 @@ export function ItemSelector({ users, menuItems, lines, onChange }: ItemSelector
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Chọn món</h2>
-          <p className="mt-1 text-sm text-slate-500">Chọn món cho từng thành viên.</p>
+          <p className="mt-1 text-sm text-slate-500">Chọn món để tính tổng tiền.</p>
         </div>
         <button
           type="button"
@@ -49,24 +47,8 @@ export function ItemSelector({ users, menuItems, lines, onChange }: ItemSelector
           return (
             <div
               key={line.id}
-              className="grid gap-2 rounded-md border border-slate-200 p-3 md:grid-cols-[1fr_1fr_120px_auto]"
+              className="grid gap-2 rounded-md border border-slate-200 p-3 md:grid-cols-[1fr_120px_auto]"
             >
-              <select
-                value={line.userId}
-                onChange={(event) => {
-                  const next = event.target.value
-                  updateLine(line.id, { userId: next ? Number(next) : '' })
-                }}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">Người gọi món</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-
               <select
                 value={line.itemId}
                 onChange={(event) => {
@@ -103,7 +85,7 @@ export function ItemSelector({ users, menuItems, lines, onChange }: ItemSelector
                 Xóa
               </button>
 
-              <div className="md:col-span-4 text-sm text-slate-500">
+              <div className="md:col-span-3 text-sm text-slate-500">
                 Thành tiền: {formatMoney((selectedItem?.price ?? 0) * line.quantity)}
               </div>
             </div>

@@ -12,6 +12,14 @@ function formatDate(value: string): string {
   }).format(new Date(value))
 }
 
+function formatDetailLabel(itemName: string, quantity: number): string {
+  if (itemName.startsWith('[AUTO]')) {
+    return 'Phần chia đều'
+  }
+
+  return `${itemName} x ${quantity}`
+}
+
 export function OrderHistory({ orders }: OrderHistoryProps) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -32,7 +40,7 @@ export function OrderHistory({ orders }: OrderHistoryProps) {
               {order.details.map((detail) => (
                 <li key={detail.id} className="flex flex-wrap justify-between gap-2">
                   <span>
-                    {detail.userName} - {detail.itemName} x {detail.quantity}
+                    {detail.userName} - {formatDetailLabel(detail.itemName, detail.quantity)}
                   </span>
                   <span>{formatMoney(detail.quantity * detail.priceAtTime)}</span>
                 </li>

@@ -6,18 +6,29 @@ interface OrderSummaryProps {
   users: User[]
   menuItems: MenuItem[]
   lines: DraftOrderLine[]
+  manualTotal: number
   onCheckout: () => Promise<void>
 }
 
-export function OrderSummary({ buyerId, users, menuItems, lines, onCheckout }: OrderSummaryProps) {
+export function OrderSummary({
+  buyerId,
+  users,
+  menuItems,
+  lines,
+  manualTotal,
+  onCheckout,
+}: OrderSummaryProps) {
   const buyerName = users.find((user) => user.id === buyerId)?.name
 
-  const totalAmount = lines.reduce((sum, line) => {
+  const itemTotal = lines.reduce((sum, line) => {
     const item = menuItems.find((menuItem) => menuItem.id === line.itemId)
     return sum + (item?.price ?? 0) * line.quantity
   }, 0)
 
-  const isDisabled = !buyerId || lines.length === 0
+  const totalAmount = manualTotal > 0 ? manualTotal : itemTotal
+  const perPerson = users.length > 0 ? totalAmount / users.length : 0
+
+  const isDisabled = !buyerId || totalAmount <= 0
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -32,7 +43,19 @@ export function OrderSummary({ buyerId, users, menuItems, lines, onCheckout }: O
           Số dòng order: <span className="font-medium">{lines.length}</span>
         </p>
         <p>
-          Tổng tạm tính: <span className="font-medium">{formatMoney(totalAmount)}</span>
+          Tổng theo món: <span className="font-medium">{formatMoney(itemTotal)}</span>
+        </p>
+        <p>
+          Tổng nhập tay:{' '}
+          <span className="font-medium">
+            {manualTotal > 0 ? formatMoney(manualTotal) : 'Chưa nhập'}
+          </span>
+        </p>
+        <p>
+          Tổng dùng để chia: <span className="font-medium">{formatMoney(totalAmount)}</span>
+        </p>
+        <p>
+          Mỗi người trả: <span className="font-medium">{formatMoney(perPerson)}</span>
         </p>
       </div>
 

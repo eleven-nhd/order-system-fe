@@ -14,7 +14,6 @@ export interface MenuItem {
 
 export interface DraftOrderLine {
   id: string
-  userId: number | ''
   itemId: number | ''
   quantity: number
 }
@@ -53,54 +52,4 @@ export interface NetDebt {
   amount: number
 }
 
-export interface MemberPhoto {
-  id: number
-  userId: number
-  userName: string
-  filePath: string
-  imageUrl: string
-  createdAt: string
-}
-
-export interface DrinkVote {
-  id: number
-  sessionId: number
-  userId: number
-  userName: string
-  itemId: number
-  itemName: string
-  quantity: number
-  createdAt: string
-}
-
-export interface VoteSession {
-  id: number
-  code: string
-  createdAt: string
-}
-
-export interface SocialLike {
-  id: number
-  userId: number
-  userName: string
-  createdAt: string
-}
-
-export interface SocialComment {
-  id: number
-  userId: number
-  userName: string
-  content: string
-  createdAt: string
-}
-
-export interface SocialPost {
-  id: number
-  userId: number
-  userName: string
-  content: string
-  createdAt: string
-  likes: SocialLike[]
-  comments: SocialComment[]
-}
 
