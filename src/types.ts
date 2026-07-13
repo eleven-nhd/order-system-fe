@@ -37,7 +37,7 @@ export interface OrderRecord {
   details: OrderDetail[]
 }
 
-export type DatePreset = 'today' | 'week' | 'month' | 'all'
+export type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'custom' | 'all'
 
 export interface DateRange {
   start: string | null
@@ -51,5 +51,4 @@ export interface NetDebt {
   toUserName: string
   amount: number
 }
-
 

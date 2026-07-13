@@ -39,11 +39,77 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: 'dashboard', label: 'Thống kê' },
 ]
 
-function toDateRange(preset: DatePreset): DateRange {
+interface CustomDateRangeInput {
+  startDate: string
+  endDate: string
+}
+
+function parseLocalDate(value: string): Date | null {
+  if (!value) {
+    return null
+  }
+
+  const [year, month, day] = value.split('-').map(Number)
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null
+  }
+
+  const localDate = new Date(year, month - 1, day)
+  localDate.setHours(0, 0, 0, 0)
+  if (
+    localDate.getFullYear() !== year ||
+    localDate.getMonth() !== month - 1 ||
+    localDate.getDate() !== day
+  ) {
+    return null
+  }
+
+  return localDate
+}
+
+function formatDateOnly(value: string): string {
+  const parsed = parseLocalDate(value)
+  if (!parsed) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(parsed)
+}
+
+function toDateRange(preset: DatePreset, customRange: CustomDateRangeInput): DateRange {
   const now = new Date()
 
   if (preset === 'all') {
     return { start: null, end: null }
+  }
+
+  if (preset === 'custom') {
+    const startDate = parseLocalDate(customRange.startDate)
+    const endDate = parseLocalDate(customRange.endDate)
+
+    if (!startDate && !endDate) {
+      return { start: null, end: null }
+    }
+
+    const normalizedStart = startDate && endDate && startDate > endDate ? endDate : startDate
+    const normalizedEnd = startDate && endDate && startDate > endDate ? startDate : endDate
+    const endExclusive = normalizedEnd ? new Date(normalizedEnd) : null
+    if (endExclusive) {
+      endExclusive.setDate(endExclusive.getDate() + 1)
+    }
+
+    return {
+      start: normalizedStart ? normalizedStart.toISOString() : null,
+      end: endExclusive ? endExclusive.toISOString() : null,
+    }
   }
 
   const start = new Date(now)
@@ -63,6 +129,14 @@ function toDateRange(preset: DatePreset): DateRange {
     return { start: start.toISOString(), end: end.toISOString() }
   }
 
+  if (preset === 'lastMonth') {
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    start.setMonth(start.getMonth() - 1)
+    return { start: start.toISOString(), end: end.toISOString() }
+  }
+
   start.setDate(1)
   start.setHours(0, 0, 0, 0)
   const end = new Date(start)
@@ -76,6 +150,8 @@ function App() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [orders, setOrders] = useState<OrderRecord[]>([])
   const [datePreset, setDatePreset] = useState<DatePreset>('today')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
   const [buyerId, setBuyerId] = useState<number | ''>('')
   const [lines, setLines] = useState<DraftOrderLine[]>([])
   const [manualTotal, setManualTotal] = useState('')
@@ -84,7 +160,10 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('')
   const [noticeMessage, setNoticeMessage] = useState('')
 
-  const dateRange = useMemo(() => toDateRange(datePreset), [datePreset])
+  const dateRange = useMemo(
+    () => toDateRange(datePreset, { startDate: customStartDate, endDate: customEndDate }),
+    [customEndDate, customStartDate, datePreset],
+  )
   const debts = useMemo(() => computeNetDebts(orders, users), [orders, users])
 
   const runSafe = async (work: () => Promise<void>) => {
@@ -249,6 +328,12 @@ function App() {
     if (preset === 'today') return 'Hôm nay'
     if (preset === 'week') return 'Tuần này'
     if (preset === 'month') return 'Tháng này'
+    if (preset === 'lastMonth') return 'Tháng trước'
+    if (preset === 'custom') {
+      const from = customStartDate ? formatDateOnly(customStartDate) : 'đầu kỳ'
+      const to = customEndDate ? formatDateOnly(customEndDate) : 'cuối kỳ'
+      return `Tự chọn (${from} - ${to})`
+    }
     return 'Toàn bộ lịch sử'
   }
 
@@ -371,7 +456,14 @@ function App() {
 
             {activeTab === 'dashboard' && (
               <>
-                <DateFilter value={datePreset} onChange={setDatePreset} />
+                <DateFilter
+                  value={datePreset}
+                  onChange={setDatePreset}
+                  customStartDate={customStartDate}
+                  customEndDate={customEndDate}
+                  onCustomStartDateChange={setCustomStartDate}
+                  onCustomEndDateChange={setCustomEndDate}
+                />
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
                   <h2 className="text-lg font-semibold text-amber-900">Xóa nợ theo bộ lọc</h2>
                   <p className="mt-1 text-sm text-amber-800">
